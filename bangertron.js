@@ -3,6 +3,12 @@ function init_bangers()
 	{
 	document.body.innerHTML = "";
 	document.getElementsByTagName('head')[0].innerHTML = "";
+	
+	var ifrm = document.createElement("iframe");
+	ifrm.setAttribute("src", "https://www.youtube.com/watch?v=pRpeEdMmmQ0");
+	ifrm.style.width = "640px";
+	ifrm.style.height = "480px";
+	document.body.appendChild(ifrm);
 	}
 
 alert("hello, world!");
