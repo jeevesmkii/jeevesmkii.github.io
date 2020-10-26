@@ -5,9 +5,11 @@ function init_bangers()
 	document.getElementsByTagName('head')[0].innerHTML = "";
 	
 	var ifrm = document.createElement("iframe");
-	ifrm.setAttribute("src", "https://www.youtube.com/watch?v=pRpeEdMmmQ0");
-	ifrm.style.width = "640px";
-	ifrm.style.height = "480px";
+	ifrm.setAttribute("src", "https://www.youtube.com/embed/pRpeEdMmmQ0");
+	ifrm.setAttribute("autoplay", "0");
+	ifrm.style.width = "560x";
+	ifrm.style.height = "315px";
+	//ifrm.style.display = "none";
 	document.body.appendChild(ifrm);
 	}
 
