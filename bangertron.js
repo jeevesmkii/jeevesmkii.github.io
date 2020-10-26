@@ -1,7 +1,7 @@
 
 function init_bangers()
 	{
-	body.innerHTML = "";
+	document.body.innerHTML = "";
 	document.getElementsByTagName('head')[0].innerHTML = "";
 	}
 
