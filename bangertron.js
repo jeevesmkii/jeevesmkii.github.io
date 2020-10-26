@@ -17,7 +17,7 @@ function init_bangers()
 	ifrm.style.width = "560x";
 	ifrm.style.height = "315px";
 	ifrm.addEventListener("load", bangertron_iframe_load);
-	//ifrm.style.display = "none";
+	ifrm.style.display = "none";
 	document.body.appendChild(ifrm);
 	}
 
