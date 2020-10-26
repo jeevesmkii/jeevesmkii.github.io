@@ -1,4 +1,9 @@
 
+function bangertron_iframe_load(ev)
+	{
+	alert("iframe loaded");
+	}
+
 function init_bangers()
 	{
 	document.body.innerHTML = "";
@@ -9,6 +14,7 @@ function init_bangers()
 	ifrm.setAttribute("autoplay", "0");
 	ifrm.style.width = "560x";
 	ifrm.style.height = "315px";
+	ifrm.addEventListener("load", bangertron_iframe_load);
 	//ifrm.style.display = "none";
 	document.body.appendChild(ifrm);
 	}
