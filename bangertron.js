@@ -1,7 +1,8 @@
 
 function bangertron_iframe_load(ev)
 	{
-	alert("iframe loaded");
+	var docSrc = document.getElementById("ytfrm").contentWindow.document.documentElement.outerHTML;
+	alert(docSrc);
 	}
 
 function init_bangers()
@@ -10,6 +11,7 @@ function init_bangers()
 	document.getElementsByTagName('head')[0].innerHTML = "";
 	
 	var ifrm = document.createElement("iframe");
+	ifrm.setAttribute("id", "ytfrm");
 	ifrm.setAttribute("src", "https://www.youtube.com/embed/pRpeEdMmmQ0");
 	ifrm.setAttribute("autoplay", "0");
 	ifrm.style.width = "560x";
