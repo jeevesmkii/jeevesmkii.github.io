@@ -12,7 +12,7 @@ function init_bangers()
 	
 	var ifrm = document.createElement("iframe");
 	ifrm.setAttribute("id", "ytfrm");
-	ifrm.setAttribute("src", "https://www.youtube.com/embed/pRpeEdMmmQ0");
+	ifrm.setAttribute("src", "https://www.youtube.com/watch?v=pRpeEdMmmQ0&t=10000");
 	ifrm.setAttribute("autoplay", "0");
 	ifrm.style.width = "560x";
 	ifrm.style.height = "315px";
