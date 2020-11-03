@@ -483,7 +483,7 @@ function bt_find_fmts(id, html)
 					if ("signatureCipher" in adpt_fmt)
 						{
 						// URL that requires a signature.
-						var params = bt_url_decode(adpt_fmt.signatureCipher);
+						var params = adpt_fmt.signatureCipher;
 					
 						var url, sig, sig_param;
 						if (!(url = params.match(/\burl=([^&]+)/)))
@@ -495,8 +495,8 @@ function bt_find_fmts(id, html)
 						if (!(sig_param = params.match(/\bsp=([^&]+)/)))
 							return;
 					
-						fmt.url = url[1];
-						fmt.sig = sig[1];
+						fmt.url = bt_url_decode(url[1]);
+						fmt.sig = bt_url_decode(sig[1]);
 						fmt.sig_param = sig_param[1];
 						}
 					else if ("url" in adpt_fmt)
