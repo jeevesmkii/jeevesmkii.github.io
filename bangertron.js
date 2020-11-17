@@ -1433,7 +1433,7 @@ function bt_init_ui()
 	setInterval(bt_ui_timer_tick, 25);
 	}
 
-var __test_playlist = ["pRpeEdMmmQ0", "qJdMjRHRLfg", "bpx7uM-5Y3Q"];
+var __test_playlist = ["HtVdAasjOgU", "pRpeEdMmmQ0", "qJdMjRHRLfg", "bpx7uM-5Y3Q"];
 var __test_playlist_ptr = 0;
 
 function bt_dotest()
