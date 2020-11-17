@@ -487,8 +487,9 @@ function bt_postprocess_fmts(id, fmts)
 				}
 				
 			fmt.url = bt_apply_signature(fmt.url, fmt.sig, cipher_spec, fmt.sig_param);
-			processed_fmts.push(fmt);
 			}
+			
+		processed_fmts.push(fmt);
 		}
 	
 	bt_prune_media();
