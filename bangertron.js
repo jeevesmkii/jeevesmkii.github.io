@@ -949,15 +949,12 @@ function bt_audio_event(type, ev)
 			{
 			_bt_player.media.next_track = { "id" : next_id, "start" : 0 };
 			bt_await_fmts(next_id, bt_handle_new_fmts);
-			bt_get_fmts(next_id);
+			bt_find_fmts(next_id);
 			}
 			
 		break;
 		
 	case __BT_MEDIA_EVENT.ENDED:
-		console.log("media ended - next track:");
-		console.log(_bt_player.media.next_track);
-		
 		_bt_player.state = __BT_PLAYER_STATE.IDLE;
 		_bt_player.media.current_track = undefined;
 		bt_audio_cue_next_track();
@@ -1055,10 +1052,7 @@ function bt_audio_cue_next_track()
 	_bt_player.media.current_track = track;
 	
 	// load the media URL and await an audio event
-	// TODO: unhardcode shakira
-	
-	_bt_player.audio.src = "http://localhost/shakira.m4a";
-	//_bt_player.audio.src = track.url;
+	bt_player.audio.src = track.url;
 	_bt_player.audio.load();
 	return true;
 	}	
@@ -1267,10 +1261,6 @@ function bt_ui_events(target, type, ev)
 	
 function bt_init_ui()
 	{
-	// discard all that old youtube crap
-	document.body.innerHTML = "";
-	document.getElementsByTagName('head')[0].innerHTML = "";
-	
 	var evfn = bt_curry(bt_ui_events);
 	
 	// define a class UI elements use so they can't be dragged
@@ -1448,6 +1438,9 @@ var __test_playlist_ptr = 0;
 
 function bt_dotest()
 	{
+	
+	document.body.innerHTML = "";
+	document.getElementsByTagName('head')[0].innerHTML = "";
 	
 	bt_init_audio();
 	bt_init_ui();
