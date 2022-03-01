@@ -198,6 +198,9 @@ function bt_fetch_url(url, callback)
 	
 function bt_new_cipher(cipher_base, cipher_spec)
 	{
+	console.log("new cipher: " + cipher_base);
+	console.log(cipher_spec);
+	
 	_bt_known_ciphers[cipher_base] = cipher_spec;
 	if (cipher_base in _bt_await.ciphers)
 		{
