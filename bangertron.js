@@ -55,7 +55,7 @@ const __BT_BUTTON_STATE =
 
 const __BT_WS_HOST = "localhost";
 const __BT_WS_PORT = 5555;
-	
+
 const __BT_WS_MODE =
 	{
 	MASTER : 1,
@@ -95,6 +95,18 @@ var _bt_player =
 		{
 		socket : undefined,
 		mode : __BT_WS_MODE.NOCONN
+		}
+	};
+
+var _bt_debug =
+	{
+	use_local : false,
+	
+	local_rsc :
+		{
+		html : "shakira-html2.html",
+		js : "ythtml5.js",
+		audio : "http://localhost/shakira.m4a"
 		}
 	};
 
@@ -221,8 +233,11 @@ function bt_find_cipher_spec(cipher_base, player_js)
 	
 	if (!player_js)
 		{
-		bt_fetch_url("https://www.youtube.com/s/player/" + cipher_base + ".js",
-			bt_curry(bt_find_cipher_spec)(cipher_base));
+		var uri = "https://www.youtube.com/s/player/" + cipher_base + ".js";
+		if (_bt_debug.use_local)
+			uri = _bt_debug.local_rsc.js;
+		
+		bt_fetch_url(uri, bt_curry(bt_find_cipher_spec)(cipher_base));
 		return;
 		}
 	
@@ -478,6 +493,7 @@ function bt_prune_media()
 		key => _bt_media[key] = _bt_media[key].filter(
 			fmt =>
 				{
+				console.log("media expires at " + fmt.expires + " and the time now is " + time);
 				return fmt.expires > time;
 				})
 			);
@@ -544,8 +560,11 @@ function bt_find_fmts(id, html)
 	{
 	if (!html)
 		{
-		bt_fetch_url("https://www.youtube.com/watch?v=" + id,
-			bt_curry(bt_find_fmts)(id));
+		var uri = "https://www.youtube.com/watch?v=" + id;
+		if (_bt_debug.use_local)
+			uri = _bt_debug.local_rsc.html;
+			
+		bt_fetch_url(uri, bt_curry(bt_find_fmts)(id));
 		return;
 		}
 	
@@ -701,6 +720,10 @@ function bt_strip_unbalanced_parens(str)
 
 function bt_parse_title(title)
 	{
+	// we only need to do this once if we're reusing format data
+	if (typeof(title) == "object")
+		return title;
+	
 	// This function is disturbingly impressive. 10 years of JWZ's distilled knowledge
 	// of every way a song title can be formatted. One can admire it without ever wanting
 	// to aqcuire the practical experience necessary to duplicate it.
@@ -1085,7 +1108,7 @@ function bt_audio_cue_next_track()
 	
 	// if we don't have formats for this ID yet, we can't play it. Check a request is in progress, and kick one off if not.	
 	var fmts = bt_get_fmts(_bt_player.media.next_track.id);
-	if (!fmts)
+	if (!fmts || fmts.length <= 0)
 		{
 		if (!bt_is_awaiting_fmts(_bt_player.media.next_track.id))
 			{
@@ -1098,6 +1121,8 @@ function bt_audio_cue_next_track()
 		
 	// select the format to play
 	var track = bt_audio_select_format(fmts);
+	if (!track)
+		throw "bt_audio_cue_next_track: no usable media in formats.";
 	
 	// parse the title in to useable chunks and set the start time
 	track.title = bt_parse_title(track.title);
@@ -1107,8 +1132,12 @@ function bt_audio_cue_next_track()
 	_bt_player.media.current_track = track;
 	
 	// load the media URL and await an audio event
+
+	var url = track.url;
+	if (_bt_debug.use_local)
+		url = _bt_debug.local_rsc.audio;
 	
-	_bt_player.audio.src = track.url;
+	_bt_player.audio.src = url;
 	_bt_player.audio.load();
 	return true;
 	}	
@@ -1622,6 +1651,10 @@ function bt_ws_request_next_track()
 
 function bt_dotest()
 	{
+	// if we're running from localhost, use the local test files
+	if (window.location.host == "localhost")
+		_bt_debug.use_local = true;
+	
 	
 	document.body.innerHTML = "";
 	document.getElementsByTagName('head')[0].innerHTML = "";
@@ -1641,6 +1674,8 @@ function bt_dotest()
 	
 	frm.appendChild(txt);
 	document.body.appendChild(frm);
+	
+	console.log(window.location);
 	
 	}
 	
