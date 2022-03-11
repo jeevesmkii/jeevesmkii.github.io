@@ -176,6 +176,8 @@ function bt_get_cipher_base(html)
 	var cipher_base = html.match(/\/jsbin\/((?:html5)?player[-_][^<>"']+?\/base)\.js/s);
 	if(!cipher_base)
 		cipher_base = html.match(/\/player\/([^<>"']+\/player[-_][^<>"']+\/base)\.js/s);
+	if (!cipher_base)
+		throw "bt_get_cipher_base: no cipher base found in yt html.";
 	
 	// in the youtubedown script, the global removal of backslashes is performed again on the output
 	// but they shouldn't exist any more thanks to the first line of this function.
@@ -198,9 +200,6 @@ function bt_fetch_url(url, callback)
 	
 function bt_new_cipher(cipher_base, cipher_spec)
 	{
-	console.log("new cipher: " + cipher_base);
-	console.log(cipher_spec);
-	
 	_bt_known_ciphers[cipher_base] = cipher_spec;
 	if (cipher_base in _bt_await.ciphers)
 		{
@@ -997,15 +996,6 @@ function bt_audio_event(type, ev)
 			_bt_player.state = __BT_PLAYER_STATE.PLAYING;
 			}
 			
-		// TODO: this test playlist stuff needs to go
-		var next_id = __test_playlist[__test_playlist_ptr++];
-		if (next_id)
-			{
-			_bt_player.media.next_track = { "id" : next_id, "start" : 0 };
-			bt_await_fmts(next_id, bt_handle_new_fmts);
-			bt_find_fmts(next_id);
-			}
-			
 		break;
 		
 	case __BT_MEDIA_EVENT.ENDED:
@@ -1088,7 +1078,10 @@ function bt_audio_select_format(fmts)
 function bt_audio_cue_next_track()
 	{
 	if (!_bt_player.media.next_track)
+		{
+		bt_ws_request_next_track();
 		return false;
+		}
 	
 	// if we don't have formats for this ID yet, we can't play it. Check a request is in progress, and kick one off if not.	
 	var fmts = bt_get_fmts(_bt_player.media.next_track.id);
@@ -1116,7 +1109,8 @@ function bt_audio_cue_next_track()
 	// load the media URL and await an audio event
 	// TODO: unhardcode shakira
 	
-	_bt_player.audio.src = track.url;
+	_bt_player.audio.src = "http://localhost/shakira.m4a";
+	//_bt_player.audio.src = track.url;
 	_bt_player.audio.load();
 	return true;
 	}	
@@ -1497,16 +1491,111 @@ function bt_init_ui()
 	setInterval(bt_ui_timer_tick, 25);
 	}
 
+function bt_ws_handle_mode(args)
+	{
+	var resp = "err";
+	
+	if (args.length != 1)
+		return resp;;
+		
+	switch (args[0])
+		{
+	case "master":
+		_bt_player.ws.mode = __BT_WS_MODE.MASTER;
+		resp = "ok";
+		break;
+		
+	case "slave":
+		// fucking slaves, get your ass back here!
+		_bt_player.ws.mode = __BT_WS_MODE.SLAVE;
+		resp = "ok"
+		break;
+			
+	case "free":
+		// request the master playlist
+		_bt_player.ws.mode = __BT_WS_MODE.FREE;
+		resp = "playlist master";
+		break;
+		
+	case "mod":
+		_bt_player.ws.mode = __BT_WS_MODE.MOD;
+		resp = "ok";
+		break;
+		}
+	
+	return resp;
+	}
+	
+function bt_ws_handle_playlist(args)
+	{
+	// TODO: master mode, slave and mod needs to do something different here
+	return "track";
+	}
+
+
+function bt_ws_handle_track(args)
+	{
+	// the track command takes up to two arguemnts. First is the yt ID of the track, second is timestamp to begin playback at, valid only in slave or mod mode.
+	if (args.length < 1)
+		return "err";
+		
+	var track_id = args[0];
+	// TODO: there should probably be more to this sanity check
+	if (track_id.length > 20)
+		return "err";
+		
+	
+	// TODO: if slave/mod mode, trigger track immediately
+	_bt_player.media.next_track = { "id" : track_id, "start" : 0 };
+	if (_bt_player.state == __BT_PLAYER_STATE.IDLE)
+		bt_audio_cue_next_track();
+	}
+
+function bt_ws_handle_message(msg)
+	{
+	var resp = "err";
+	var args = msg.split(" ");
+	msg = args.shift();
+	
+	switch (msg)
+		{
+	case "mode":
+		resp = bt_ws_handle_mode(args);
+		break;
+		
+	case "playlist":
+		resp = bt_ws_handle_playlist(args);
+		break;
+	
+	case "track":
+		resp = bt_ws_handle_track(args);
+		break;
+		
+	default:
+		console.log("unknown message: " + msg);
+		break;
+		}
+	
+	return resp;
+	}
+	
 function bt_ws_events(type, ev)
 	{
 	switch (type)
 		{
 	case __BT_WS_EVENT.OPEN:
-		_bt_player.ws.socket.send("hello, world!");
 		break;
 		
 	case __BT_WS_EVENT.MESSAGE:
-		console.log(ev.data);
+		ev.data.split("\r\n").forEach(
+			msg =>
+			{
+			if (msg)
+				{
+				var resp = bt_ws_handle_message(msg);
+				_bt_player.ws.socket.send(resp + "\r\n");
+				}
+			});
 		break;
 		}
 	
@@ -1522,8 +1611,16 @@ function bt_ws_init()
 	_bt_player.ws.socket.addEventListener("error", evfn(__BT_WS_EVENT.ERROR));
 	}
 
-var __test_playlist = ["pRpeEdMmmQ0", "qJdMjRHRLfg", "bpx7uM-5Y3Q"];
-var __test_playlist_ptr = 0;
+function bt_ws_request_next_track()
+	{
+	// free/master mode only. others shouldn't send unsolicited track requests
+	// TODO: check WS state
+	
+	if (_bt_player.ws.mode != __BT_WS_MODE.FREE && _bt_player.ws.mode != __BT_WS_MODE.NASTER)
+		return;
+		
+	_bt_player.ws.socket.send("track\r\n");
+	}
 
 function bt_dotest()
 	{
@@ -1546,21 +1643,6 @@ function bt_dotest()
 	
 	frm.appendChild(txt);
 	document.body.appendChild(frm);
-	
-	
-	var next_id = __test_playlist[__test_playlist_ptr++];
-	
-	//_bt_player.audio.src = "http://localhost/shakira.m4a";
-	
-	_bt_player.media.next_track = { "id" : next_id, "start" : 0 };
-	
-	bt_await_fmts(next_id, function() {
-		var fmts = bt_get_fmts(next_id);
-		txt.value = JSON.stringify(fmts);
-		bt_handle_new_fmts();
-		
-	});
-	bt_find_fmts(next_id);
 	
 	}
 	
