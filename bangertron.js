@@ -1107,10 +1107,8 @@ function bt_audio_cue_next_track()
 	_bt_player.media.current_track = track;
 	
 	// load the media URL and await an audio event
-	// TODO: unhardcode shakira
 	
-	_bt_player.audio.src = "http://localhost/shakira.m4a";
-	//_bt_player.audio.src = track.url;
+	_bt_player.audio.src = track.url;
 	_bt_player.audio.load();
 	return true;
 	}	
