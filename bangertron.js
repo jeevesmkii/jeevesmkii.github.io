@@ -133,7 +133,7 @@ const __BT_FLAVOUR_TEXT =
 	idle : "Bangertron 9000 online! Press play to begin the bangers :catJam:",
 	connecting : ":Hackermans: Attempting to connect to the banger server. Please stand by. :Hackermans:",
 	fatal_error : ":Pepega: A fatal error occured! :Pepega: try reloading I guess?",
-	not_youtube : ":Pepega: Bangertron 9000 must be run in a Youtube tab to work. Go to youtube.com and click the Bangertron bookmarklet again. :Pepega:";
+	not_youtube : ":Pepega: Bangertron 9000 must be run in a Youtube tab to work. Go to youtube.com and click the Bangertron bookmarklet again. :Pepega:"
 	}; 
 
 function bt_new_error(ss, txt)
@@ -1907,7 +1907,7 @@ function bt_main()
 	bt_debug_log("Bangertron 9000 version " + __BT_VERSION + " by JeevesMkII. Running...");
 	if (not_youtube)
 		{
-		bt_debug_log(("Bangertron 9000 needs to be run in a youtube tab. Exiting.");
+		bt_debug_log("Bangertron 9000 needs to be run in a youtube tab. Exiting.");
 		bt_set_flavour_text("not_youtube", -1);
 		}
 	}
