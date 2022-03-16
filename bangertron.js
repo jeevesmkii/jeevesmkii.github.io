@@ -34,7 +34,7 @@
 */
 
 const __BT_VERSION = "0.3.1";
-const __BT_WS_HOST = "bangertron.8bpsmodem.com";
+const __BT_WS_HOST = "localhost";
 const __BT_WS_PORT = 5555;
 
 var _bt_known_ciphers = {};
