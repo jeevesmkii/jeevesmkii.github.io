@@ -1,3 +1,42 @@
+/* 
+* - Bangertron 9000 by JeevesMII (2022) -
+* https://jeevesmkii.github.io/bangertron/
+*
+* Bangertron 9000 is a shared playlist audio player running in a browser that fetches audio from youtube.
+* I am deeply indebted to JWZ's youtubedown perl script for the youtube reverse engineering that I've
+* more or less copied wholesale to make this work. This almost certainly constitutes a derivative work
+* of that script, so I've included its license and copyright statement below.
+*
+* Please note: I wrote this for one specific small community. If you like the way this works and you're
+* thinking of copying the idea or the code, PLEASE DON'T. Obviously I can't stop you, but there's a
+* tragedy of the commons type scenario I see happening here. I enjoy the fact that Youtube doesn't really
+* have proper DRM and you can relatively easily download videos. The fastest way to screw that up for
+* everyone is for the Record Industry Assholes Association to see someone turn Youtube in to an ad-free
+* music player, which is more or less what Bangertron 9000 is. So this is for me and a few hundred other
+* select individuals to enjoy. Lets keep it that way, eh? Thank you.
+*
+*/
+
+/*
+* - youtubedown.pl - 
+* https://www.jwz.org/hacks/youtubedown
+*
+* Copyright © 2007-2022 Jamie Zawinski <jwz@jwz.org>
+*
+* Permission to use, copy, modify, distribute, and sell this software and its
+* documentation for any purpose is hereby granted without fee, provided that
+* the above copyright notice appear in all copies and that both that
+* copyright notice and this permission notice appear in supporting
+* documentation.  No representations are made about the suitability of this
+* software for any purpose.  It is provided "as is" without express or
+* implied warranty.
+*
+*/
+
+const __BT_VERSION = "0.3.1";
+const __BT_WS_HOST = "bangertron.8bpsmodem.com";
+const __BT_WS_PORT = 5555;
+
 var _bt_known_ciphers = {};
 var _bt_media = {};
 
@@ -6,8 +45,6 @@ var _bt_await =
 	ciphers : {},
 	media : {}
 	};
-
-const __BT_VERSION = "0.3.1";
 
 const __BT_SUBSYSTEM =
 	{
@@ -62,9 +99,6 @@ const __BT_BUTTON_STATE =
 	UP   : 2
 	// MORE_ENERGY : 3
 	};
-
-const __BT_WS_HOST = "localhost";
-const __BT_WS_PORT = 5555;
 
 const __BT_WS_MODE =
 	{
@@ -1482,6 +1516,7 @@ function bt_ui_events(target, type, ev)
 			
 		case __BT_UI_EVENT.MOUSEOUT:
 			bt_update_img(ev.srcElement, "volume");
+			ev.srcElement.button_state = __BT_BUTTON_STATE.UP;
 			break;
 		
 		case __BT_UI_EVENT.MOUSEDOWN:
@@ -1839,7 +1874,7 @@ function bt_ws_events(type, ev)
 		break;
 	
 	case __BT_WS_EVENT.CLOSE:
-		bt_debug_log("Banger server connection cloased.");
+		bt_debug_log("Banger server connection closed.");
 		_bt_player.ws.mode = __BT_WS_MODE.NOCONN;
 		break;
 	
