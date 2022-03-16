@@ -34,7 +34,7 @@
 */
 
 const __BT_VERSION = "0.3.1";
-const __BT_WS_HOST = "localhost";
+const __BT_WS_HOST = "bangertron.8bpsmodem.com";
 const __BT_WS_PORT = 5555;
 
 var _bt_known_ciphers = {};
@@ -1896,7 +1896,7 @@ function bt_ws_init()
 	_bt_player.ws.backoff++;
 	
 	var evfn = bt_curry(bt_ws_events);
-	_bt_player.ws.socket = new WebSocket("ws://" + __BT_WS_HOST + ":" + __BT_WS_PORT);
+	_bt_player.ws.socket = new WebSocket("wss://" + __BT_WS_HOST + ":" + __BT_WS_PORT);
 	_bt_player.ws.socket.addEventListener("open", evfn(__BT_WS_EVENT.OPEN));
 	_bt_player.ws.socket.addEventListener("close", evfn(__BT_WS_EVENT.CLOSE));
 	_bt_player.ws.socket.addEventListener("message", evfn(__BT_WS_EVENT.MESSAGE));
