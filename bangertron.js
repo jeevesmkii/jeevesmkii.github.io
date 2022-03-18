@@ -1275,6 +1275,9 @@ function bt_audio_cue_next_track()
 	if (_bt_debug.use_local)
 		url = _bt_debug.local_rsc.audio;
 	
+	// weirdly firefox will start playing the track immediately when setting the src prop, leading to a double media load.
+	// maybe pausing the element first will help?
+	_bt_player.audio.pause();
 	_bt_player.audio.src = url;
 	_bt_player.audio.load();
 	return true;
@@ -1282,6 +1285,10 @@ function bt_audio_cue_next_track()
 
 function bt_player_state_toggle()
 	{
+	// if we've already encounted a fatal error, do nothing.
+	if (_bt_player.state == __BT_PLAYER_STATE.FATAL_ERROR)
+		return;
+	
 	if (_bt_player.state != __BT_PLAYER_STATE.PAUSED)
 		bt_pause_audio();
 	else
