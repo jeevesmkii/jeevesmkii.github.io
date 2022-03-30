@@ -33,7 +33,7 @@
 *
 */
 
-const __BT_VERSION = "0.4.0";
+const __BT_VERSION = "0.4.1";
 const __BT_WS_HOST = "bangertron.8bpsmodem.com";
 const __BT_WS_PORT = 5555;
 
@@ -118,6 +118,15 @@ const __BT_WS_EVENT =
 	ERROR   : 4
 	};
 
+const __BT_WS_COMMAND =
+	{
+	MODE : {cmd : "mode", handler : bt_ws_handle_mode, unsolicited : true },
+	PLAYLIST : {cmd : "playlist", handler : bt_ws_handle_playlist, unsolicited : false },
+	TRACK : {cmd :"track", handler : bt_ws_handle_track, unsolicited : true},
+	LOG : {cmd: "log", handler : bt_ws_handle_log, unsolicited : true },
+	CHALLENGE : {cmd: "challenge", handler : bt_ws_handle_challenge, unsolicited : false }
+	};
+
 var _bt_player =
 	{
 	state : __BT_PLAYER_STATE.PAUSED,
@@ -145,6 +154,9 @@ var _bt_player =
 		{
 		socket : undefined,
 		mode : __BT_WS_MODE.NOCONN,
+		current : undefined,
+		queue : [],
+		
 		last_connect : 0,
 		backoff : 0,
 		auth_client_random : undefined,
@@ -1741,7 +1753,6 @@ function bt_init_ui()
 	ctrl_box.style.gridTemplateColumns = "140px 370px 140px"
 	ctrl_box.style.height = "140px";
 	
-	
 	// The play/pause button
 	
 	var pp_box = document.createElement("div");
@@ -1946,63 +1957,55 @@ function bt_init_ui()
 
 function bt_ws_handle_mode(args)
 	{
-	var resp = "err";
-	
 	if (args.length != 1)
-		return resp;;
+		throw bt_new_error(__BT_SUBSYSTEM.WEBSOCKET, "bt_ws_handle_mode: bad mode command.");
 		
 	switch (args[0])
 		{
 	case "master":
 		_bt_player.ws.mode = __BT_WS_MODE.MASTER;
-		resp = "ok";
 		break;
 		
 	case "slave":
 		// fucking slaves, get your ass back here!
 		_bt_player.ws.mode = __BT_WS_MODE.SLAVE;
-		resp = "ok"
 		break;
 			
 	case "free":
 		// request the master playlist
 		_bt_player.ws.mode = __BT_WS_MODE.FREE;
-		resp = "playlist master";
+		bt_ws_queue_command("playlist", ["master"], "playlist");
 		break;
 		
 	case "mod":
 		_bt_player.ws.mode = __BT_WS_MODE.MOD;
-		resp = "ok";
 		break;
 		}
 	
-	if (resp != "err")
-		bt_debug_log("Entering " + args[0] + " mode.");
-	
-	return resp;
+	bt_debug_log("Entering " + args[0] + " mode.");
 	}
 	
 function bt_ws_handle_playlist(args)
 	{
 	if (args.length != 2)
-		return "err";
+		throw bt_new_error(__BT_SUBSYSTEM.WEBSOCKET, "bt_ws_handle_playlist: bad playlist command.");
 	
 	bt_debug_log("Loaded playlist " + args[0] + ".");
 	
 	// TODO: master mode, slave and mod needs to do something different here
-	return "track";
+	bt_ws_queue_command("track", [], "track");;
 	}
 	
 function bt_ws_handle_challenge(args)
 	{
 	if (args.length != 2)
-		return "err";
+		throw bt_new_error(__BT_SUBSYSTEM.WEBSOCKET, "bt_ws_handle_challenge: bad challenge command.");
 		
 	if (!_bt_player.ws.auth_client_random || !_bt_player.ws.auth_pass)
-		return "err";
+		throw bt_new_error(__BT_SUBSYSTEM.WEBSOCKET, "bt_ws_handle_challenge: unexpected auth challenge.");
 	
 	if (args[0].length != 12 || args[1].length != 32)
-		return "err";
+		throw bt_new_error(__BT_SUBSYSTEM.WEBSOCKET, "bt_ws_handle_challenge: malformed challenge arguments");
 	
 	var pass = _bt_player.ws.auth_pass;
 	var crand = _bt_player.ws.auth_client_random;
@@ -2012,25 +2015,28 @@ function bt_ws_handle_challenge(args)
 	_bt_player.ws.auth_pass = undefined;
 	
 	if (srand.length != 8 || challenge.length != 24)
-		return "err";
+		throw bt_new_error(__BT_SUBSYSTEM.WEBSOCKET, "bt_ws_handle_challenge: malformed challenge arguments.")
 	
 	bt_ws_auth_challenge_response(pass, crand, srand, challenge, bt_ws_send_challenge_response)
-	
-	return "ok";
 	}
 
 
 function bt_ws_handle_track(args)
 	{
-	// the track command takes up to two arguemnts. First is the yt ID of the track, second is timestamp to begin playback at, valid only in slave or mod mode.
+	// the track command takes up to two arguments. First is the yt ID of the track, second is timestamp to begin playback at, valid only in slave or mod mode.
 	if (args.length < 1)
-		return "err";
+		throw bt_new_error(__BT_SUBSYSTEM.WEBSOCKET, "bt_ws_handle_track: bad track command.");
 		
 	var track_id = args[0];
 	// TODO: there should probably be more to this sanity check
 	if (track_id.length > 20)
-		return "err";
-		
+		throw bt_new_error(__BT_SUBSYSTEM.WEBSOCKET, "bt_ws_handle_track: malformed track arguments.");
+	
+	// whle track commands are unsolicited in slave/mod mode, they may be directly solicted in free/master mode.
+	// so check if this was solicited, and fulfil it if so.
+	if (_bt_player.ws.current && _bt_player.ws.current.expect == "track")
+		_bt_player.ws.current = undefined;
+	
 	bt_debug_log("Next track is " + args[0] + ".");
 	
 	
@@ -2039,37 +2045,141 @@ function bt_ws_handle_track(args)
 	if (_bt_player.state == __BT_PLAYER_STATE.IDLE)
 		bt_audio_cue_next_track();
 	}
-
-function bt_ws_handle_message(msg)
+	
+function bt_ws_handle_log(args)
 	{
-	var resp = "err";
-	var args = msg.split(" ");
-	msg = args.shift();
+	if (args.length != 1)
+		throw bt_new_error(__BT_SUBSYSTEM.WEBSOCKET, "bt_ws_handle_log: malformed websocket log command.");
 	
-	switch (msg)
+	bt_debug_log(args[0]);
+	}
+
+function bt_ws_parse_message(msg)
+	{
+	var cmds = [];
+	var current_cmd = [];
+	var line_len = 0;
+	var idx = 0;
+	
+	while ((idx = msg.search(/\s+/g)) > 0)
 		{
-	case "mode":
-		resp = bt_ws_handle_mode(args);
-		break;
+		if (msg.startsWith("\""))
+			{
+			// quoted string argument, scan for the terminating quote
+			var done = false;
+			var escaped = false;
+			var arg = "";
+			var i = 1;
+			
+			for (; i < msg.length; i++)
+				{
+				switch (msg[i])
+					{
+				case "\\":
+					if (escaped)
+						{
+						arg += msg[i];
+						escaped = false;
+						}
+					else
+						escaped = true;
+					
+					break;
+				
+				case "\"":
+					if (escaped)
+						{
+						arg += msg[i];
+						escaped = false;
+						}
+					else
+						done = true;
+						
+					break;
+				
+				default:
+					if (escaped)
+						throw bt_new_error(__BT_SUBSYSTEM.WEBSOCKET, "bt_ws_parse_message: bad escape sequence in command");
+					arg += msg[i];
+					
+					break;
+					}
+					
+				if (done)
+					break;
+				}
+			
+			if (!done)
+				bt_new_error(__BT_SUBSYSTEM.WEBSOCKET, "bt_ws_parse_message: unterminated quoted string in command.");
+			
+			current_cmd.push(arg);
+			idx = ++i;
+			}
+		else
+			{
+			// reqular, unqoted arg
+			current_cmd.push(msg.slice(0, idx));
+			}
+			
+		// chomp the whitepace
+		var ws = msg.slice(idx).match(/^\s+/g);
+		if (!ws)
+			bt_new_error(__BT_SUBSYSTEM.WEBSOCKET, "bt_ws_parse_message: garbage characters after terminating quote.")
 		
-	case "playlist":
-		resp = bt_ws_handle_playlist(args);
-		break;
+		msg = msg.slice(idx + ws[0].length);
+		line_len += idx + ws[0].length;
+			
+		if (ws[0].includes("\r\n"))
+			{
+			// message line terminates, discard empty lines
+			if (current_cmd.length != 0)
+				{
+				var cmd = current_cmd.shift();
+				cmd = Object.keys(__BT_WS_COMMAND).find(key => __BT_WS_COMMAND[key].cmd == cmd);
+				
+				// ignore unknown commands
+				if (cmd)
+					cmds.push({"cmd" : __BT_WS_COMMAND[cmd], "args" : current_cmd});
+				
+				current_cmd = [];
+				line_len = 0;
+				}
+				
+			continue;	
+			}
+		
+		if (line_len > 256)
+			throw bt_new_error(__BT_SUBSYSTEM.WEBSOCKET, "bt_ws_parse_message: command line length exceeded.");
+		}
+		
+	return cmds;
+	}
 	
-	case "track":
-		resp = bt_ws_handle_track(args);
-		break;
+function bt_ws_send_next_command()
+	{
+	if (_bt_player.ws.current)
+		return;
+	
+	// send commands until we've sent one that requires a response
+	while (_bt_player.ws.queue.length > 0)
+		{
+		_bt_player.ws.current = _bt_player.ws.queue.shift();
+		var cmd = _bt_player.ws.current.cmd;
+		_bt_player.ws.current.args.forEach(arg => cmd += " " + arg);
+	
+		_bt_player.ws.socket.send(cmd + "\r\n");
 		
-	case "challenge":
-		resp = bt_ws_handle_challenge(args);
-		break;
-		
-	default:
-		console.log("unknown message: " + msg);
-		break;
+		if (!_bt_player.ws.current.expect)
+			_bt_player.ws.current = undefined;
+		else
+			break;
 		}
 	
-	return resp;
+	}
+
+function bt_ws_queue_command(cmd, args, expect)
+	{
+	_bt_player.ws.queue.push({"cmd" : cmd, "args" : args, "expect" : expect });
 	}
 	
 function bt_ws_events(type, ev)
@@ -2082,15 +2192,32 @@ function bt_ws_events(type, ev)
 		break;
 		
 	case __BT_WS_EVENT.MESSAGE:
-		ev.data.split("\r\n").forEach(
-			msg =>
+	
+		try
 			{
-			if (msg)
+			// parse and dispatch messages
+			var cmds = bt_ws_parse_message(ev.data);
+			cmds.forEach(cmd =>
 				{
-				var resp = bt_ws_handle_message(msg);
-				_bt_player.ws.socket.send(resp + "\r\n");
-				}
-			});
+				if (!cmd.cmd.unsolicited)
+					{
+					// check we're expecting this command. Fulfil the current expectation if so.
+					if (_bt_player.ws.current && _bt_player.ws.current.expect == cmd.cmd.cmd)
+						_bt_player.ws.current = undefined;
+					else
+						throw bt_new_error(__BT_SUBSYSTEM, "bt_ws: websocket protocol sequence error.");
+					}
+				
+				cmd.cmd.handler(cmd.args);
+				});
+			}
+		catch (err)
+			{
+			bt_handle_error(err);
+			}
+		
+		// if we satisfied the current command, send the next
+		bt_ws_send_next_command();
 		break;
 	
 	case __BT_WS_EVENT.CLOSE:
@@ -2120,7 +2247,8 @@ function bt_ws_auth_challenge_response(pass, crand, srand, challenge, callback)
 	let _bt_ws_auth_worker = async function(pass, challenge)
 		{
 		var key_material = await crypto.subtle.digest("SHA-256", pass);
-		var mac_key = await crypto.subtle.importKey("raw", key_material, {name : "HMAC", hash : "SHA-256"}, true, ["sign"]);
+		var key_material_b = new Uint8Array(key_material);
+		var mac_key = await crypto.subtle.importKey("raw", key_material_b, {name : "HMAC", hash : "SHA-256"}, true, ["sign"]);
 		var sig = crypto.subtle.sign("HMAC",  mac_key, challenge);
 		
 		return sig;
@@ -2132,10 +2260,9 @@ function bt_ws_auth_challenge_response(pass, crand, srand, challenge, callback)
 	msg = bt_char_array_concat(crand, srand);
 	msg = bt_char_array_concat(msg, challenge);
 	
-	// TODO: error handling
-	_bt_ws_auth_worker(pass, challenge)
+	_bt_ws_auth_worker(pass, msg)
 		.then(resp => callback(resp))
-		.catch(err => console.log("well, fuck."));
+		.catch(err => bt_handle_error(bt_new_error(__BT_SUBSYSTEM.WEBSOCKET, "bt_ws_auth_challenge_response: crypto error.")));
 	}
 	
 function bt_ws_init()
@@ -2156,6 +2283,8 @@ function bt_ws_init()
 
 function bt_ws_close()
 	{
+	_bt_player.ws.current = undefined;
+	_bt_player.ws.queue = [];
 	_bt_player.ws.socket.close();
 	}
 
@@ -2166,8 +2295,10 @@ function bt_ws_request_next_track()
 	
 	if (_bt_player.ws.mode != __BT_WS_MODE.FREE && _bt_player.ws.mode != __BT_WS_MODE.NASTER)
 		return;
-		
-	_bt_player.ws.socket.send("track\r\n");
+	
+	bt_ws_queue_command("track", [], "track");
+	// send immediately if not processing other commands
+	bt_ws_send_next_command();
 	}
 
 function bt_ws_request_auth(ev)
@@ -2180,13 +2311,18 @@ function bt_ws_request_auth(ev)
 	
 	_bt_player.ws.auth_client_random = bt_ws_auth_generate_client_random();
 	_bt_player.ws.auth_pass = passbox.value;
-	_bt_player.ws.socket.send("auth " + bt_base64_encode(_bt_player.ws.auth_client_random) + "\r\n");
+	
+	bt_ws_queue_command("auth", [bt_base64_encode(_bt_player.ws.auth_client_random)], "challenge");
+	// send immediately if not processing other commands
+	bt_ws_send_next_command();
 	}
 
 function bt_ws_send_challenge_response(resp)
 	{
 	var resp_bytes = new Uint8Array(resp);
-	_bt_player.ws.socket.send("challenge-response " + bt_base64_encode(resp_bytes) + "\r\n");
+	bt_ws_queue_command("challenge-response", [bt_base64_encode(resp_bytes)]);
+	// send immediately if not processing other commands
+	bt_ws_send_next_command();
 	}
 
 function bt_main()
